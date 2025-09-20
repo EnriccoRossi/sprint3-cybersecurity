@@ -1,0 +1,82 @@
+name: Segurança - DAST e SCA
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-run:
+    name: Build and Run Python App
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Run Python App
+        run: |
+          nohup python3 app.py &
+          sleep 10
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y jq curl
+
+      - name: Install ngrok
+        run: |
+          curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+          echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
+          sudo apt update && sudo apt install ngrok
+
+      - name: Authenticate ngrok
+        run: ngrok config add-authtoken ${{ secrets.NGROK_AUTHTOKEN }}
+
+      - name: Expose local server with ngrok
+        run: |
+          ngrok http 8080 > ngrok.log &
+          sleep 10
+          NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url')
+          echo "NGROK_URL=$NGROK_URL"
+          echo "NGROK_URL=$NGROK_URL" >> $GITHUB_ENV
+
+  zap-scan:
+    name: ZAP DAST Scan
+    runs-on: ubuntu-latest
+    needs: build-and-run
+    steps:
+      - name: Run ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: ${{ env.NGROK_URL }}
+          issue_title: 'Relatório de Vulnerabilidades DAST da ExpertIA'
+          fail_action: true
+          allow_issue_writing: true
+          artifact_name: zap_scan
+
+      - name: Upload ZAP Reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: zap-reports
+          path: |
+            report_html.html
+            report_md.md
+            report_json.json
+
+  sca:
+    name: SCA - Dependency-Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Dependency-Check Scan
+        run: |
+          ./dependency-check.sh --project "FinSecure" --scan "requirements.txt" --format "ALL" --out . --failOnCVSS 7.0
+
+      - name: Upload SCA Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: dependency-check-report
+          path: dependency-check-report.html
