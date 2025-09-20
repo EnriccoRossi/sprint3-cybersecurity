@@ -1,3 +1,4 @@
+
 name: Segurança - DAST e SCA
 
 on:
@@ -40,6 +41,12 @@ jobs:
           NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url')
           echo "NGROK_URL=$NGROK_URL"
           echo "NGROK_URL=$NGROK_URL" >> $GITHUB_ENV
+
+      - name: Upload ngrok log
+        uses: actions/upload-artifact@v3
+        with:
+          name: ngrok-log
+          path: ngrok.log
 
   zap-scan:
     name: ZAP DAST Scan
@@ -85,4 +92,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: dependency-check-report
-          path: dependency-check-report.html
+          path: |
+            dependency-check-report.html
+            dependency-check-report.json
+            dependency-check-report.xml
