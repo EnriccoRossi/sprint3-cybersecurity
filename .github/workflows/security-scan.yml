@@ -71,9 +71,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Download Dependency-Check
+        run: |
+          wget https://github.com/jeremylong/DependencyCheck/releases/download/v8.4.0/dependency-check-8.4.0-release.zip
+          unzip dependency-check-8.4.0-release.zip -d dependency-check
+          chmod +x dependency-check/bin/dependency-check.sh
+
       - name: Run Dependency-Check Scan
         run: |
-          ./dependency-check.sh --project "FinSecure" --scan "requirements.txt" --format "ALL" --out . --failOnCVSS 7.0
+          dependency-check/bin/dependency-check.sh --project "FinSecure" --scan "requirements.txt" --format "ALL" --out . --failOnCVSS 7.0
 
       - name: Upload SCA Report
         uses: actions/upload-artifact@v4
